@@ -74,11 +74,20 @@ async function fromIkon() {
   return out;
 }
 
+const { listPosts, hasDb } = require("./_db");
+
+async function own() {
+  if (!hasDb()) return [];
+  return (await listPosts()).map((p) => ({ ...p, own: 1 }));
+}
+
 module.exports = async (req, res) => {
-  const results = await Promise.allSettled([fromNewsMn(), fromIkon()]);
+  const results = await Promise.allSettled([own(), fromNewsMn(), fromIkon()]);
   const items = results.flatMap((x) => (x.status === "fulfilled" ? x.value : []));
   items.sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
-  res.setHeader("Cache-Control", "s-maxage=120, stale-while-revalidate=600");
+  res.setHeader("Cache-Control", "s-maxage=30, stale-while-revalidate=120");
   res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.status(200).send(JSON.stringify(items.slice(0, 40)));
+  const mine = items.filter((x) => x.own);
+  const rest = items.filter((x) => !x.own).slice(0, 40);
+  res.status(200).send(JSON.stringify([...mine, ...rest]));
 };

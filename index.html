@@ -84,7 +84,7 @@ function ago(t){const s=(Date.now()-t)/1000;if(s<60)return"Дөнгөж сая";
 const isNew=n=>Date.now()-n.at<3600000;
 const meta=n=>`<div class="meta">${isNew(n)?'<span class="new">ШИНЭ</span>':""}<span class="cat">${esc(n.c)}</span><time>${ago(n.at)}</time></div>`;
 const ex=n=>{const x=n.b[0];return x.length>190?x.slice(0,190).replace(/\s+\S*$/,"")+"…":x};
-const FEATURED="";
+let FEATURED="";
 const sorted=()=>[...items].sort((a,b)=>b.at-a.at);
 const homeList=()=>{const l=sorted(),f=l.find(n=>n.id===FEATURED);return f?[f,...l.filter(n=>n!==f)]:l};
 function feed(list,{hero=true,title=""}={}){
@@ -129,11 +129,19 @@ try{history.replaceState({r:route},"")}catch(e){}
 const CIMG={"Улс төр": "uls-tur", "Эдийн засаг": "ediin-zasag", "Нийгэм": "niigem", "Спорт": "sport", "Технологи": "tehnologi", "Эрүүл мэнд": "eruul-mend", "Байгаль орчин": "cattle-snow"};
 async function live(){try{
   const r=await fetch("/api/news",{cache:"no-store"});if(!r.ok)return;const list=await r.json();if(!Array.isArray(list))return;
-  const have=new Set(items.map(x=>x.id));let added=0;
-  for(const n of list){if(have.has(n.id))continue;items.push({...n,img:IMG[CIMG[n.c]]||IMG["niigem"],at:Date.parse(n.at)});fresh.add(n.id);added++}
-  if(added){if(!route||!route.startsWith("m-")){const y=scrollY;render();scrollTo(0,y)}setTimeout(()=>{fresh.clear();if(!route||!route.startsWith("m-"))render()},8000)}
+  const have=new Map(items.map(x=>[x.id,x]));let changed=false;
+  const ownIds=new Set(list.filter(n=>n.own).map(n=>n.id));
+  // устгагдсан админы мэдээг хасна
+  for(let i=items.length-1;i>=0;i--)if(items[i].own&&!ownIds.has(items[i].id)){items.splice(i,1);changed=true}
+  FEATURED=(list.find(n=>n.own&&n.pin)||{}).id||"";
+  for(const n of list){
+    const img=n.img||IMG[CIMG[n.c]]||IMG["niigem"];
+    const old=have.get(n.id);
+    if(old){if(n.own&&(old.t!==n.t||old.img!==img||old.c!==n.c||JSON.stringify(old.b)!==JSON.stringify(n.b))){Object.assign(old,{...n,img,at:Date.parse(n.at)});changed=true}continue}
+    items.push({...n,img,at:Date.parse(n.at)});fresh.add(n.id);changed=true}
+  if(changed){if(!route||!route.startsWith("m-")){const y=scrollY;render();scrollTo(0,y)}setTimeout(()=>{fresh.clear();if(!route||!route.startsWith("m-"))render()},8000)}
 }catch(e){}}
-live();setInterval(live,120000);
+live();setInterval(live,60000);
 render();
 setInterval(render,60000);
 }
